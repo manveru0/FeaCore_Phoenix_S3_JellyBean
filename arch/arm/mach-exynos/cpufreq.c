@@ -856,10 +856,10 @@ ssize_t show_UV_mV_table(struct cpufreq_policy *policy, char *buf) {
 ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
                                       const char *buf, size_t count) {
 
-	unsigned int ret = -EINVAL;
+    unsigned int ret = -EINVAL;
     int i = 0;
     int j = 0;
-	int u[14];
+    int u[14];
     ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d", &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], 
 															&u[7], &u[8], &u[9], &u[10], &u[11], &u[12], &u[13]);
 	if(ret != 14) {
