@@ -32,7 +32,7 @@ extern int migrate_pages(struct list_head *l, new_page_t x,
 #else
 extern int migrate_pages(struct list_head *l, new_page_t x,
 			unsigned long private, bool offlining,
-			enum migrate_mode mode);
+			enum migrate_mode mode, int tries);
 #endif
 extern int migrate_huge_pages(struct list_head *l, new_page_t x,
 			unsigned long private, bool offlining,

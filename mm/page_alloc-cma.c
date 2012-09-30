@@ -2162,9 +2162,9 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	if (!order)
 		return NULL;
 
-	if (compaction_deferred(preferred_zone)) {
-		*deferred_compaction = true;
-		return NULL;
+	if (compaction_deferred(preferred_zone)) {	
+    	*deferred_compaction = true;	
+    	return NULL;
 	}
 
 	current->flags |= PF_MEMALLOC;
@@ -2194,7 +2194,7 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		 * but not enough to satisfy watermarks.
 		 */
 		count_vm_event(COMPACTFAIL);
-
+		
 		/*
 		 * As async compaction considers a subset of pageblocks, only
 		 * defer if the failure was a sync compaction failure.
@@ -2376,10 +2376,10 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	unsigned long pages_reclaimed = 0;
 	unsigned long did_some_progress;
 	bool sync_migration = false;
-	bool deferred_compaction = false;
 #ifdef CONFIG_ANDROID_WIP
 	unsigned long start_tick = jiffies;
 #endif
+	bool deferred_compaction = false;
 
 	/*
 	 * In the slowpath, we sanity check order to avoid ever trying to
@@ -2613,7 +2613,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 
 retry_cpuset:
 	cpuset_mems_cookie = get_mems_allowed();
-
+	
 	/* The preferred zone is used for statistics later */
 	first_zones_zonelist(zonelist, high_zoneidx,
 				nodemask ? : &cpuset_current_mems_allowed,
@@ -2631,8 +2631,8 @@ retry_cpuset:
 				preferred_zone, migratetype);
 
 	trace_mm_page_alloc(page, order, gfp_mask, migratetype);
-
-out:
+	
+	out:
 	/*
 	 * When updating a task's mems_allowed, it is possible to race with
 	 * parallel threads in such a way that an allocation can fail while
@@ -2641,7 +2641,7 @@ out:
 	 */
 	if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 		goto retry_cpuset;
-
+		
 	return page;
 }
 EXPORT_SYMBOL(__alloc_pages_nodemask);
@@ -2868,8 +2868,8 @@ bool skip_free_areas_node(unsigned int flags, int nid)
 		goto out;
 
 	do {
-		cpuset_mems_cookie = get_mems_allowed();
-		ret = !node_isset(nid, cpuset_current_mems_allowed);
+	  cpuset_mems_cookie = get_mems_allowed();
+	  ret = !node_isset(nid, cpuset_current_mems_allowed);
 	} while (!put_mems_allowed(cpuset_mems_cookie));
 out:
 	return ret;
@@ -6116,7 +6116,7 @@ static int __alloc_contig_migrate_range(unsigned long start, unsigned long end)
 
 		ret = migrate_pages(&cc.migratepages,
 				    __alloc_contig_migrate_alloc,
-				    0, false, true);
+				    0, false, true, tries);
 	}
 
 	putback_lru_pages(&cc.migratepages);
