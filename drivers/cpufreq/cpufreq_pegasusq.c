@@ -156,13 +156,15 @@ static unsigned int get_nr_run_avg(void)
 
 #define DEF_MAX_CPU_LOCK			(0)
 #define DEF_MIN_CPU_LOCK			(0)
+#define DEF_CPU_UP_FREQ				(500000)
+#define DEF_CPU_DOWN_FREQ			(200000)
 #define DEF_UP_NR_CPUS				(1)
 #define DEF_CPU_UP_RATE				(10)
 #define DEF_CPU_DOWN_RATE			(20)
-#define DEF_FREQ_STEP				(20)
+#define DEF_FREQ_STEP				(37)
 #define DEF_START_DELAY				(0)
 
-#define UP_THRESHOLD_AT_MIN_FREQ		(60)
+#define UP_THRESHOLD_AT_MIN_FREQ		(40)
 #define FREQ_FOR_RESPONSIVENESS			(400000)
 
 #define HOTPLUG_DOWN_INDEX			(0)
@@ -214,7 +216,6 @@ struct cpu_dbs_info_s {
 	cputime64_t prev_cpu_idle;
 	cputime64_t prev_cpu_iowait;
 	cputime64_t prev_cpu_wall;
-	unsigned int prev_cpu_wall_delta;
 	cputime64_t prev_cpu_nice;
 	struct cpufreq_policy *cur_policy;
 	struct delayed_work work;
@@ -252,6 +253,8 @@ static struct dbs_tuners {
 	unsigned int freq_step;
 	unsigned int cpu_up_rate;
 	unsigned int cpu_down_rate;
+	unsigned int cpu_up_freq;
+	unsigned int cpu_down_freq;
 	unsigned int up_nr_cpus;
 	unsigned int max_cpu_lock;
 	unsigned int min_cpu_lock;
@@ -262,8 +265,6 @@ static struct dbs_tuners {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	int early_suspend;
 #endif
-	unsigned int up_threshold_at_min_freq;
-	unsigned int freq_for_responsiveness;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
@@ -272,6 +273,8 @@ static struct dbs_tuners {
 	.freq_step = DEF_FREQ_STEP,
 	.cpu_up_rate = DEF_CPU_UP_RATE,
 	.cpu_down_rate = DEF_CPU_DOWN_RATE,
+	.cpu_up_freq = DEF_CPU_UP_FREQ,
+	.cpu_down_freq = DEF_CPU_DOWN_FREQ,
 	.up_nr_cpus = DEF_UP_NR_CPUS,
 	.max_cpu_lock = DEF_MAX_CPU_LOCK,
 	.min_cpu_lock = DEF_MIN_CPU_LOCK,
@@ -279,8 +282,6 @@ static struct dbs_tuners {
 	.dvfs_debug = 0,
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	.early_suspend = -1,
-	.up_threshold_at_min_freq = UP_THRESHOLD_AT_MIN_FREQ,
-	.freq_for_responsiveness = FREQ_FOR_RESPONSIVENESS,
 #endif
 };
 
@@ -471,12 +472,12 @@ show_one(down_differential, down_differential);
 show_one(freq_step, freq_step);
 show_one(cpu_up_rate, cpu_up_rate);
 show_one(cpu_down_rate, cpu_down_rate);
+show_one(cpu_up_freq, cpu_up_freq);
+show_one(cpu_down_freq, cpu_down_freq);
 show_one(up_nr_cpus, up_nr_cpus);
 show_one(max_cpu_lock, max_cpu_lock);
 show_one(min_cpu_lock, min_cpu_lock);
 show_one(dvfs_debug, dvfs_debug);
-show_one(up_threshold_at_min_freq, up_threshold_at_min_freq);
-show_one(freq_for_responsiveness, freq_for_responsiveness);
 static ssize_t show_hotplug_lock(struct kobject *kobj,
 				struct attribute *attr, char *buf)
 {
@@ -546,62 +547,6 @@ define_one_global_rw(hotplug_rq_3_0);
 define_one_global_rw(hotplug_rq_3_1);
 define_one_global_rw(hotplug_rq_4_0);
 
-/**
- * update_sampling_rate - update sampling rate effective immediately if needed.
- * @new_rate: new sampling rate
- *
- * If new rate is smaller than the old, simply updaing
- * dbs_tuners_int.sampling_rate might not be appropriate. For example,
- * if the original sampling_rate was 1 second and the requested new sampling
- * rate is 10 ms because the user needs immediate reaction from ondemand
- * governor, but not sure if higher frequency will be required or not,
- * then, the governor may change the sampling rate too late; up to 1 second
- * later. Thus, if we are reducing the sampling rate, we need to make the
- * new value effective immediately.
- */
-static void update_sampling_rate(unsigned int new_rate)
-{
-	int cpu;
-
-	dbs_tuners_ins.sampling_rate = new_rate
-				     = max(new_rate, min_sampling_rate);
-
-	for_each_online_cpu(cpu) {
-		struct cpufreq_policy *policy;
-		struct cpu_dbs_info_s *dbs_info;
-		unsigned long next_sampling, appointed_at;
-
-		policy = cpufreq_cpu_get(cpu);
-		if (!policy)
-			continue;
-		dbs_info = &per_cpu(od_cpu_dbs_info, policy->cpu);
-		cpufreq_cpu_put(policy);
-
-		mutex_lock(&dbs_info->timer_mutex);
-
-		if (!delayed_work_pending(&dbs_info->work)) {
-			mutex_unlock(&dbs_info->timer_mutex);
-			continue;
-		}
-
-		next_sampling  = jiffies + usecs_to_jiffies(new_rate);
-		appointed_at = dbs_info->work.timer.expires;
-
-
-		if (time_before(next_sampling, appointed_at)) {
-
-			mutex_unlock(&dbs_info->timer_mutex);
-			cancel_delayed_work_sync(&dbs_info->work);
-			mutex_lock(&dbs_info->timer_mutex);
-
-			schedule_delayed_work_on(dbs_info->cpu, &dbs_info->work,
-						 usecs_to_jiffies(new_rate));
-
-		}
-		mutex_unlock(&dbs_info->timer_mutex);
-	}
-}
-
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
@@ -610,7 +555,7 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	update_sampling_rate(input);
+	dbs_tuners_ins.sampling_rate = max(input, min_sampling_rate);
 	return count;
 }
 
@@ -744,6 +689,30 @@ static ssize_t store_cpu_down_rate(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+static ssize_t store_cpu_up_freq(struct kobject *a, struct attribute *b,
+				 const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.cpu_up_freq = min(input, dbs_tuners_ins.max_freq);
+	return count;
+}
+
+static ssize_t store_cpu_down_freq(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.cpu_down_freq = max(input, dbs_tuners_ins.min_freq);
+	return count;
+}
+
 static ssize_t store_up_nr_cpus(struct kobject *a, struct attribute *b,
 				const char *buf, size_t count)
 {
@@ -828,35 +797,6 @@ static ssize_t store_dvfs_debug(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static ssize_t store_up_threshold_at_min_freq(struct kobject *a, 
-					      struct attribute *b,
-					      const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > MAX_FREQUENCY_UP_THRESHOLD ||
-	    input < MIN_FREQUENCY_UP_THRESHOLD) {
-		return -EINVAL;
-	}
-	dbs_tuners_ins.up_threshold_at_min_freq = input;
-	return count;
-}
-
-static ssize_t store_freq_for_responsiveness(struct kobject *a,
-					     struct attribute *b,
-				   	     const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1)
-		return -EINVAL;
-	dbs_tuners_ins.freq_for_responsiveness = input;
-	return count;
-}
-
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
@@ -866,13 +806,13 @@ define_one_global_rw(down_differential);
 define_one_global_rw(freq_step);
 define_one_global_rw(cpu_up_rate);
 define_one_global_rw(cpu_down_rate);
+define_one_global_rw(cpu_up_freq);
+define_one_global_rw(cpu_down_freq);
 define_one_global_rw(up_nr_cpus);
 define_one_global_rw(max_cpu_lock);
 define_one_global_rw(min_cpu_lock);
 define_one_global_rw(hotplug_lock);
 define_one_global_rw(dvfs_debug);
-define_one_global_rw(up_threshold_at_min_freq);
-define_one_global_rw(freq_for_responsiveness);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -885,6 +825,8 @@ static struct attribute *dbs_attributes[] = {
 	&freq_step.attr,
 	&cpu_up_rate.attr,
 	&cpu_down_rate.attr,
+	&cpu_up_freq.attr,
+	&cpu_down_freq.attr,
 	&up_nr_cpus.attr,
 	/* priority: hotplug_lock > max_cpu_lock > min_cpu_lock
 	   Exception: hotplug_lock on early_suspend uses min_cpu_lock */
@@ -904,8 +846,6 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_rq_3_0.attr,
 	&hotplug_rq_3_1.attr,
 	&hotplug_rq_4_0.attr,
-	&up_threshold_at_min_freq.attr,
-	&freq_for_responsiveness.attr,
 	NULL
 };
 
@@ -1133,10 +1073,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		unsigned int idle_time, wall_time, iowait_time;
 		unsigned int load, load_freq;
 		int freq_avg;
-		bool deep_sleep_detected = false;
-		/* the evil magic numbers, only 2 at least */
-		const unsigned int deep_sleep_backoff = 10;
-		const unsigned int deep_sleep_factor = 5;
 
 		j_dbs_info = &per_cpu(od_cpu_dbs_info, j);
 		prev_wall_time = j_dbs_info->prev_cpu_wall;
@@ -1149,32 +1085,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		wall_time = (unsigned int) cputime64_sub(cur_wall_time,
 							 prev_wall_time);
 		j_dbs_info->prev_cpu_wall = cur_wall_time;
-
-		/*
-		 * Ignore wall delta jitters in both directions.  An
-		 * exceptionally long wall_time will likely result
-		 * idle but it was waken up to do work so the next
-		 * slice is less likely to want to run at low
-		 * frequency. Let's evaluate the next slice instead of
-		 * the idle long one that passed already and it's too
-		 * late to reduce in frequency.  As opposed an
-		 * exceptionally short slice that just run at low
-		 * frequency is unlikely to be idle, but we may go
-		 * back to idle pretty soon and that not idle slice
-		 * already passed. If short slices will keep coming
-		 * after a series of long slices the exponential
-		 * backoff will converge faster and we'll react faster
-		 * to high load. As opposed we'll decay slower
-		 * towards low load and long idle times.
-		 */
-		if (j_dbs_info->prev_cpu_wall_delta >
-		    wall_time * deep_sleep_factor ||
-		    j_dbs_info->prev_cpu_wall_delta * deep_sleep_factor <
-		    wall_time)
-			deep_sleep_detected = true;
-		j_dbs_info->prev_cpu_wall_delta =
-			(j_dbs_info->prev_cpu_wall_delta * deep_sleep_backoff
-			 + wall_time) / (deep_sleep_backoff+1);
 
 		idle_time = (unsigned int) cputime64_sub(cur_idle_time,
 							 prev_idle_time);
@@ -1200,9 +1110,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			j_dbs_info->prev_cpu_nice = kstat_cpu(j).cpustat.nice;
 			idle_time += jiffies_to_usecs(cur_nice_jiffies);
 		}
-
-		if (deep_sleep_detected)
-			continue;
 
 		if (dbs_tuners_ins.io_is_busy && idle_time >= iowait_time)
 			idle_time -= iowait_time;
@@ -1234,12 +1141,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		hotplug_history->num_hist = 0;
 
 	/* Check for frequency increase */
-	if (policy->cur < dbs_tuners_ins.freq_for_responsiveness) {
-		up_threshold = dbs_tuners_ins.up_threshold_at_min_freq;
+	if (policy->cur < FREQ_FOR_RESPONSIVENESS) {
+		up_threshold = UP_THRESHOLD_AT_MIN_FREQ;
 	}
 
 	if (max_load_freq > up_threshold * policy->cur) {
-		int inc = 100000;
+		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
 		int target = min(policy->max, policy->cur + inc);
 		/* If switching to max speed, apply sampling_down_factor */
 		if (policy->cur < policy->max && target == policy->max)
@@ -1279,12 +1186,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			freq_next = policy->min;
 
 
-		down_thres = dbs_tuners_ins.up_threshold_at_min_freq
+		down_thres = UP_THRESHOLD_AT_MIN_FREQ
 			- dbs_tuners_ins.down_differential;
 
-		if (freq_next < dbs_tuners_ins.freq_for_responsiveness
+		if (freq_next < FREQ_FOR_RESPONSIVENESS
 			&& (max_load_freq / freq_next) > down_thres)
-			freq_next = dbs_tuners_ins.freq_for_responsiveness;
+			freq_next = FREQ_FOR_RESPONSIVENESS;
 
 		if (policy->cur == freq_next)
 			return;

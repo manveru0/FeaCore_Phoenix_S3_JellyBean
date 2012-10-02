@@ -29,8 +29,6 @@ extern unsigned long compact_zone_order(struct zone *zone, int order,
 					gfp_t gfp_mask, bool sync);
 #endif
 
-extern int compact_nodes(bool sync);
-
 /* Do not skip compaction more than 64 times */
 #define COMPACT_MAX_DEFER_SHIFT 6
 
@@ -86,11 +84,6 @@ static inline void defer_compaction(struct zone *zone)
 static inline bool compaction_deferred(struct zone *zone)
 {
 	return 1;
-}
-
-static inline int compact_nodes(bool sync)
-{
-    return COMPACT_CONTINUE;
 }
 
 #endif /* CONFIG_COMPACTION */
