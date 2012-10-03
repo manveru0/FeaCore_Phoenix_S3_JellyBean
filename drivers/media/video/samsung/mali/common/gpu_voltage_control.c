@@ -38,7 +38,7 @@ extern mali_dvfs_threshold_table mali_dvfs_threshold[4];
 unsigned int gv[4];
 
 static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *attr, char *buf) {
-	return sprintf(buf, "Step1: %d\nStep2: %d\nStep3: %d\n Step4: %d\n",
+	return sprintf(buf, "Step0: %d\nStep1: %d\nStep2: %d\nStep3: %d\n",
 		       mali_dvfs[0].vol, mali_dvfs[1].vol,mali_dvfs[2].vol, mali_dvfs[3].vol);
 }
 
