@@ -383,6 +383,7 @@ int second_overflow(unsigned long secs)
 			time_tai++;
 			printk(KERN_NOTICE
 				"Clock: inserting leap second 23:59:60 UTC\n");
+		}
 		break;
 	case TIME_DEL:
 		if (!(time_status & STA_DEL))

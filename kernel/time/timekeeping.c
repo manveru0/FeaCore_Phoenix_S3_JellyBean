@@ -183,7 +183,7 @@ static void update_rt_offset(void)
 {
 	struct timespec tmp, *wtm = &wall_to_monotonic;
 
-	set_normalized_timespec(&tmp, -wtm-≥tv_sec, -wtm-≥tv_nsec);
+	set_normalized_timespec(&tmp, -wtm->tv_sec, -wtm->tv_nsec);
 	offs_real = timespec_to_ktime(tmp);
 }
 
