@@ -418,8 +418,8 @@ mali_bool init_mali_dvfs_status(int step)
 	set_mali_dvfs_current_step(step);
 
 #ifdef EXYNOS4_ASV_ENABLED
-	mali_dvfs_table_update();
-	change_mali_dvfs_status(mali_policy.lowStep, 0);
+  mali_dvfs_table_update();
+  change_mali_dvfs_status(1, 0);
 #endif
 
 	return MALI_TRUE;
