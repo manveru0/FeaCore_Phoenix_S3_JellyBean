@@ -1,7 +1,11 @@
 /*
- * Author: andip71, 30.11.2012
+ * Author: andip71, 01.01.2013
  *
- * Version 1.2
+ * Version 1.4.2
+ *
+ * credits: Supercurio for ideas and partially code from his Voodoo
+ * 	    sound implementation,
+ *          Gokhanmoral for further modifications to the original code
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -29,7 +33,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 
 // Boeffla sound general
 #define BOEFFLA_SOUND_DEFAULT 	0
-#define BOEFFLA_SOUND_VERSION 	"1.2"
+#define BOEFFLA_SOUND_VERSION 	"1.4.1"
 
 // Debug mode
 #define DEBUG_DEFAULT 		1
@@ -92,7 +96,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 #define FLL_LOOP_GAIN_TUNED	5
 
 // headphone levels
-#define HEADPHONE_DEFAULT 	45
+#define HEADPHONE_DEFAULT 	50
 
 #define HEADPHONE_MAX 		63
 #define HEADPHONE_MIN 		45
@@ -107,6 +111,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 #define MIC_MODE_DEFAULT 	0
 #define MIC_MODE_CONCERT 	1
 #define MIC_MODE_NOISY 		2
+#define MIC_MODE_LIGHT 		3
 
 // Microphone control
 #define MIC_DEFAULT_LEFT_VALUE		267
@@ -136,7 +141,15 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 #define MIC_NOISY_DRC1_3		153
 #define MIC_NOISY_DRC1_4		364
 
+#define MIC_LIGHT_LEFT_VALUE		268
+#define MIC_LIGHT_RIGHT_VALUE		268
+#define MIC_LIGHT_INPUT_MIXER_3		32
+#define MIC_LIGHT_INPUT_MIXER_4		32
+#define MIC_LIGHT_DRC1_1		156
+#define MIC_LIGHT_DRC1_2		2116
+#define MIC_LIGHT_DRC1_3		161
+#define MIC_LIGHT_DRC1_4		462
+
 // General
 #define ON 	1
 #define OFF 	0
-
