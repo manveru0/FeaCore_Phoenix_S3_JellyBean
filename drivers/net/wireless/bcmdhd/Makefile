@@ -17,10 +17,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER             \
 #################
 
 DHDCFLAGS += -DCUSTOMER_HW4
-<<<<<<< HEAD
-=======
 DHDCFLAGS += -DBLOCK_IPV6_PACKET -DPASS_IPV4_SUSPEND
->>>>>>> parent of 18fc3d5... net: wireless: bcmdhd: update driver to 1.28.11.9
 DHDCFLAGS += -DSUPPORT_DEEP_SLEEP -DWL_CFG80211_STA_EVENT
 DHDCFLAGS += -DSIMPLE_MAC_PRINT
 
