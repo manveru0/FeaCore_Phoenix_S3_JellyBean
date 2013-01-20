@@ -719,14 +719,12 @@ static int compact_node(int nid, bool sync)
 }
 
 /* Compact all nodes in the system */
-int compact_nodes(bool sync)
+static void compact_nodes(bool sync)
 {
 	int nid;
 
 	for_each_online_node(nid)
 		compact_node(nid, sync);
-
-	return COMPACT_COMPLETE;
 }
 
 /* The written value is actually unused, all memory is compacted */
@@ -737,7 +735,7 @@ int sysctl_compaction_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *length, loff_t *ppos)
 {
 	if (write)
-		return compact_nodes(true);
+		compact_nodes(true);
 
 	return 0;
 }
