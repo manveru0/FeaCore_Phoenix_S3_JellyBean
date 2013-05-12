@@ -731,5 +731,11 @@ config SLP_PROCESS_MON
 	help
 	  Providing monitoring important processes. Users can register the process
 	  with sysfs.
+	  
+config TOUCH_WAKE
+	bool "Support for Touch Wake"
+	default y
+	help
+	  Say Y here to enable Touch Wake. In case of a screenout, Touch Wake turns your screen on by touching it during a certain amount of time.  
 
 endif # MISC_DEVICES
